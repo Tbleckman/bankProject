@@ -1,4 +1,5 @@
 # bankProject
+# *must open in a project folder for a created text file to appear*
 banking system with java that manages a users bank accounts with 15 inputs which alters and presents data of the users account with a user interface (terminal)
 
 Implements/manipulates linked lists as the main data structure
