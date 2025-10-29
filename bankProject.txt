@@ -1,0 +1,5 @@
+Money: $9400.0
+Total Transactions: [-500.0]
+Bank Transactions:
+Capital One: $600.0 [CAP1761696207057]
+[500.0]

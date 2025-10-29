@@ -1,3 +1,6 @@
+import database.AccountDatabaseAdapter;
+import database.DatabaseConfig;
+
 public class User {
     private double money;
     private Node transactions;

@@ -1,4 +1,4 @@
-//Not importing .* in order for space efficiency
+//Not importing .* for space efficiency
 import java.util.Scanner;
 import java.util.InputMismatchException;
 import java.io.BufferedWriter;
@@ -6,9 +6,14 @@ import java.io.FileWriter;
 import java.io.File;
 import java.io.IOException;
 
+import database.AccountDatabaseAdapter;
+import database.DatabaseConfig;
+import database.DatabaseManager;
+
 public class Interface {
     static Scanner input = new Scanner(System.in);
     static Bank userBankm;
+    private static AccountDatabaseAdapter dbAdapter = new AccountDatabaseAdapter();
 
 
     //Wrapper class for the main test file to implement
@@ -28,7 +33,7 @@ public class Interface {
                 if (user.getBank(i) == null) {
                     break;
                 }
-                writer.write(user.getBank(i).getName() + ": $" + user.getBank(i).getBankDeposit() + "\n");
+                writer.write(user.getBank(i).getName() + ": $" + user.getBank(i).getBankDeposit() + " [" + user.getBank(i).getAccountNumber() + "]\n");
                 writer.write(user.getBank(i).getTransactions() + "\n");
             }
             writer.close();
@@ -78,8 +83,20 @@ public class Interface {
 
                 //Goes through the information of the given banks
                 while (scan.hasNext()) {
+                    
                     token = scan.nextLine();
                     bank = bankDecider(token);
+                    
+                    DatabaseManager.AccountData dbAccount = dbAdapter.loadAccount(bank.getAccountNumber());
+                    if (dbAccount != null) {
+                        System.out.println("Found account " + bank.getAccountNumber() + " in database with balance $" + dbAccount.balance);
+                        bank = recreateBankWithBalance(bank.getName(), dbAccount.balance, bank.getAccountNumber());
+                    }
+                    else {
+                        System.out.println("Account " + bank.getAccountNumber() + " not in database. Saving now...");
+                        dbAdapter.saveAccount(bank);
+                    }
+
                     user.uploadAddBank(bank);
 
                     token = scan.nextLine();
@@ -98,6 +115,7 @@ public class Interface {
                         user.getBank(counter).setTransactions(tranHolder);
                     }
                     counter++;
+                    
                 }
 
 
@@ -111,11 +129,24 @@ public class Interface {
     }
 
     //Helper method for uploadSession to determine what bank is being fed into the scanner to appropriately convert to the right data
+    private static Bank recreateBankWithBalance(String bankName, double balance, String accountNumber) {
+        if (bankName.equals("BNY Mellon")) {
+            return new BNYMellon(balance, accountNumber);
+        } 
+        else if (bankName.equals("Chase")) {
+            return new Chase(balance, accountNumber);
+        } 
+        else { // Capital One
+            return new CapitalOne(balance, accountNumber);
+        }
+    }
+    
     private static Bank bankDecider(String input) {
         Scanner bscan = new Scanner(input);
         String val;
         double fval;
         Bank bank;
+        String accountNum = null;
         input = bscan.next();
 
 
@@ -124,20 +155,61 @@ public class Interface {
             val = bscan.next();
             val = val.substring(1);
             fval = Double.parseDouble(val);
-            bank = new BNYMellon(fval);
+            //bank = new BNYMellon(fval);
+            if (bscan.hasNext()) {
+                String token = bscan.next();
+                if (token.startsWith("[") && token.endsWith("]")) {
+                    accountNum = token.substring(1, token.length() - 1);
+                }
+            }
+
+            if (accountNum != null) {
+                bank = new BNYMellon(fval, accountNum);
+            }
+            else {
+                bank = new BNYMellon(fval);
+            }
         }
         else if (input.equals("Chase")) {
             val = bscan.next();
             val = val.substring(1);
             fval = Double.parseDouble(val);
-            bank = new Chase(fval);
+            //bank = new Chase(fval);
+
+            if (bscan.hasNext()) {
+                String token = bscan.next();
+                if (token.startsWith("[") && token.endsWith("]")) {
+                    accountNum = token.substring(1, token.length() - 1);
+                }
+            }
+        
+            if (accountNum != null) {
+                bank = new Chase(fval, accountNum);
+            } 
+            else {
+                bank = new Chase(fval);
+            }
         }
         else {
             bscan.next();
             val = bscan.next();
             val = val.substring(1);
             fval = Double.parseDouble(val);
-            bank = new CapitalOne(fval);
+            //bank = new CapitalOne(fval);
+
+            if (bscan.hasNext()) {
+                String token = bscan.next();
+                if (token.startsWith("[") && token.endsWith("]")) {
+                    accountNum = token.substring(1, token.length() - 1);
+                }
+            }
+        
+            if (accountNum != null) {
+                bank = new CapitalOne(fval, accountNum);
+            } 
+            else {
+                bank = new CapitalOne(fval);
+            }
         }
         bscan.close();
         return bank;
@@ -146,7 +218,8 @@ public class Interface {
 
     // The "wrapped" class that implements the bulk of the Terminal User Interface
     private static void choice() {
-        System.out.println("Weldome! To start your session, have you already done a past session you would like to continue?");
+        System.out.println("Welcome! To start your session, have you already done a past session you would like to continue?");
+        System.out.println("Note that you need to have a prior made txt file for this feature");
         System.out.println("Y for yes or N for no");
 
         String iochoice;
@@ -253,6 +326,7 @@ public class Interface {
                 System.out.println();
 
                 System.out.println("Would you like to save your session to continue down the line?");
+                System.out.println("*this saves your session as a text file to be used in another session");
                 System.out.println("Y for yes or N for no");
                 
                 
@@ -291,7 +365,7 @@ public class Interface {
 
                     System.out.println("Okay, your session will be created in a txt file now, hold on");
                     saveSession(user);
-                    System.out.println("The file should be called 'session.txt'");
+                    System.out.println("The file should be called 'bankProject.txt'");
                 }
 
                 System.out.println();
@@ -360,6 +434,10 @@ public class Interface {
                 }
             }
             user.deposit(val, userBank);
+            dbAdapter.saveAccount(userBank);
+            dbAdapter.logTransaction(userBank.getAccountNumber(), "DEPOSIT",val,userBank.getBankDeposit(), "Depositing to account");
+
+
             System.out.println();
             System.out.println("Your account now has $" + userBank.getBankDeposit());
             System.out.println();
@@ -401,6 +479,10 @@ public class Interface {
                 }
             }
             user.withdrawal(val, userBank);
+            dbAdapter.saveAccount(userBank);
+            dbAdapter.logTransaction(userBank.getAccountNumber(), "WITHDRAW", val, userBank.getBankDeposit(), "Withdrawal from account");
+
+
             System.out.println();
             System.out.println("Your account now has $" + userBank.getBankDeposit());
             System.out.println();
@@ -570,6 +652,9 @@ public class Interface {
                 }
                 System.out.println("Alright, your current account will proceed to be deleted");
                 user.removeBank(toDelete);
+                dbAdapter.deleteAccount(userBank.getAccountNumber());
+
+
                 if (user.getNumBanks() == 0) {
                     System.out.println("Note that you don't have a bank account anymore");
                     System.out.println("Most features won't be available to you until you create a new bank account");
@@ -612,6 +697,8 @@ public class Interface {
             }
             else {
                 user.removeBank(toDelete);
+                dbAdapter.deleteAccount(userBank.getAccountNumber());
+
             }
             System.out.println();
             System.out.println("The banks that you currently have are:");
@@ -976,6 +1063,8 @@ public class Interface {
             double bankFunds = bankFundsChoice(user);
 
             Bank bank = new BNYMellon(bankFunds);
+            dbAdapter.saveAccount(bank);
+
             user.addBank(bank);
             return bank;
         }
@@ -985,6 +1074,8 @@ public class Interface {
             double bankFunds = bankFundsChoice(user);
            
             Bank bank = new Chase(bankFunds);
+            dbAdapter.saveAccount(bank);
+
             user.addBank(bank);
             return bank;
         }
@@ -998,6 +1089,8 @@ public class Interface {
             double bankFunds = bankFundsChoice(user);
             
             Bank bank = new CapitalOne(bankFunds);
+            dbAdapter.saveAccount(bank);
+
             user.addBank(bank);
             return bank;
         }

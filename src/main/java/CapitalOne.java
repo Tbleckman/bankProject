@@ -1,12 +1,16 @@
-public class BNYMellon implements Bank {
+import database.AccountDatabaseAdapter;
+import database.DatabaseConfig;
+
+public class CapitalOne implements Bank{
     private double deposit;
-    private static int numBNY = 0;
+    private String accountNumber;
+    private static int accountCounter = 1;
+    private static int numCapitalOne = 0;
+    private Node bank_transactions;
 
     // Note that I'm setting up my own Node attribute so that I don't 
     // Have to worry about constantly resizing an array for any given transactions
     // This will be further explained later
-
-    private Node bank_transactions;
 
     private class Node {
         private Object statement;
@@ -17,36 +21,47 @@ public class BNYMellon implements Bank {
         }
     }
 
-    public BNYMellon(double deposit) {
+    public CapitalOne(double deposit) {
         /* Old idea that I had in the beginning of the project
         if i wanted to bring it back this code would be useful
 
-        if (numBNY == 1) {
-            throw new IllegalArgumentException("You can't have more than one type of bank!");
+        if (numCapitalOne == 1) {
+            throw new IllegalArgumentException("Can't have more than one Capital One!");
         }
         */
         this.deposit = deposit;
-        numBNY++;
+        this.accountNumber = "CAP" + System.currentTimeMillis(); //String.format("%06d", accountCounter++);
+        numCapitalOne++;
         bank_transactions = new Node(null, null);
-        
     }
 
-    // The general getters and interface methods are below
+    public CapitalOne(double deposit, String accountNumber) {
+        this.deposit = deposit;
+        this.accountNumber = accountNumber;
+        numCapitalOne++;
+        bank_transactions = new Node(null,null);
+    }
+
+    // The getters and interace methods are below
+
+    public String getAccountNumber() {
+        return accountNumber;
+    }
 
     public double getBankDeposit() {
         return deposit;
     }
 
-    public static int getNumBNY() {
-        return numBNY;
+    public static int getNumCapitalOne() {
+        return numCapitalOne;
     }
 
     public String getName() {
-        return "BNY Mellon";
+        return "Capital One";
     }
 
     public void lowerBankNum() {
-        numBNY--;
+        numCapitalOne--;
     }
 
     public void changeFundsUp(double val) {
@@ -57,9 +72,10 @@ public class BNYMellon implements Bank {
     public void changeFundsDown(double val) {
         if (deposit - val < 0) {
             System.out.println("You're gonna need a loan (get more money)...");
+            System.out.println();
             return;
         }
-        deposit -= val;
+        deposit-= val;
         addTransaction(-val);
     }
 
@@ -95,7 +111,7 @@ public class BNYMellon implements Bank {
     //Private helper method to turn a bank transaction object into a string
     private String convertTransactions(Object[] arr) {
         String s = "[";
-        for (int i = 0; i < arr.length; i++) {
+        for (int i = 0; i <arr.length; i++) {
             if (i == arr.length - 1) {
                 s += arr[i] + "]";
                 return s;
@@ -105,12 +121,11 @@ public class BNYMellon implements Bank {
         return s;
     }
 
-    
+
     // To simply erase the transaction history of a given bank object
     // You can simply change the head of the linked list to null, resetting it
     public void wipeTransactions() {
-        bank_transactions.statement = null;
-        bank_transactions.next = null;
+        bank_transactions = new Node(null, null);
     }
 
 

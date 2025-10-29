@@ -1,6 +1,12 @@
-public class CapitalOne implements Bank{
+//import javafx.scene.Node;
+import database.AccountDatabaseAdapter;
+import database.DatabaseConfig;
+
+public class Chase implements Bank{
     private double deposit;
-    private static int numCapitalOne = 0;
+    private String accountNumber;
+    private static int accountCounter = 1;
+    private static int numChase = 0;
     private Node bank_transactions;
 
     // Note that I'm setting up my own Node attribute so that I don't 
@@ -16,35 +22,47 @@ public class CapitalOne implements Bank{
         }
     }
 
-    public CapitalOne(double deposit) {
+    public Chase(double deposit) {
         /* Old idea that I had in the beginning of the project
         if i wanted to bring it back this code would be useful
-
-        if (numCapitalOne == 1) {
-            throw new IllegalArgumentException("Can't have more than one Capital One!");
+        
+        if (numChase == 1) {
+            throw new IllegalArgumentException("You can't have more than one Chase!");
         }
         */
         this.deposit = deposit;
-        numCapitalOne++;
+        this.accountNumber = "CHS" + System.currentTimeMillis(); //String.format("%06d", accountCounter++);
+        numChase++;
         bank_transactions = new Node(null, null);
     }
 
+    public Chase(double deposit, String accountNumber) {
+        this.deposit = deposit;
+        this.accountNumber = accountNumber;
+        numChase++;
+        bank_transactions = new Node(null,null);
+    }
+
     // The getters and interace methods are below
+    
+    public String getAccountNumber() {
+        return accountNumber;
+    }
 
     public double getBankDeposit() {
         return deposit;
     }
 
-    public static int getNumCapitalOne() {
-        return numCapitalOne;
+    public static int getNumChase() {
+        return numChase;
     }
 
     public String getName() {
-        return "Capital One";
+        return "Chase";
     }
 
     public void lowerBankNum() {
-        numCapitalOne--;
+        numChase--;
     }
 
     public void changeFundsUp(double val) {
@@ -58,7 +76,7 @@ public class CapitalOne implements Bank{
             System.out.println();
             return;
         }
-        deposit-= val;
+        deposit -= val;
         addTransaction(-val);
     }
 
@@ -90,7 +108,7 @@ public class CapitalOne implements Bank{
         }
         trav.next = new Node(val, null);
     }
-
+    
     //Private helper method to turn a bank transaction object into a string
     private String convertTransactions(Object[] arr) {
         String s = "[";
@@ -103,7 +121,7 @@ public class CapitalOne implements Bank{
         }
         return s;
     }
-
+    
 
     // To simply erase the transaction history of a given bank object
     // You can simply change the head of the linked list to null, resetting it
