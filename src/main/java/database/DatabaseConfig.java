@@ -14,8 +14,11 @@ public class DatabaseConfig {
     
     // Database connection details
     private static final String DB_URL = "jdbc:postgresql://localhost:5432/banking_system";
-    private static final String DB_USER = "postgres";  // Change to your PostgreSQL username
-    private static final String DB_PASSWORD = "postgres";  // Change to your PostgreSQL password
+    private static final String DB_USER = "";  // Change to your PostgreSQL username
+    private static final String DB_PASSWORD = System.getenv("DB_PASSWORD") != null
+        ? System.getenv("DB_PASSWORD")
+        : "postgres";
+    // Change to your PostgreSQL password
     
     // Connection pool settings (optional but recommended)
     private static final int MAX_CONNECTIONS = 10;
