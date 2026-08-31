@@ -13,11 +13,23 @@ public class DatabaseConfig {
     // ============ CONFIGURATION - CHANGE THESE VALUES ============
     
     // Database connection details
-    private static final String DB_URL = "jdbc:postgresql://localhost:5432/banking_system";
-    private static final String DB_USER = "";  // Change to your PostgreSQL username
-    private static final String DB_PASSWORD = System.getenv("DB_PASSWORD") != null
-        ? System.getenv("DB_PASSWORD")
-        : "postgres";
+    private static final String DB_HOST =
+    System.getenv().getOrDefault("DB_HOST", "localhost");
+
+    private static final String DB_PORT =
+        System.getenv().getOrDefault("DB_PORT", "5432");
+
+    private static final String DB_NAME =
+        System.getenv().getOrDefault("DB_NAME", "banking_system");
+
+    private static final String DB_USER =
+        System.getenv().getOrDefault("DB_USER", "postgres");
+
+    private static final String DB_PASSWORD =
+        System.getenv().getOrDefault("DB_PASSWORD", "postgres");
+
+    private static final String DB_URL =
+        "jdbc:postgresql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME;
     // Change to your PostgreSQL password
     
     // Connection pool settings (optional but recommended)
