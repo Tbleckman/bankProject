@@ -15,15 +15,20 @@ public class RiskServiceClient {
     private static final String ANALYZE_URL = 
         "http://" + RISK_SERVICE_HOST + ":" + RISK_SERVICE_PORT + "/analyze";
     
-    private final HttpClient client = HttpClient.newHttpClient();
+    private final HttpClient client = HttpClient.newBuilder()
+        .version(HttpClient.Version.HTTP_1_1)
+        .build();
 
-    public String analzyeTransaction(double amount, String transactionType, int recentTransactions) throws Exception {
+    public String analyzeTransaction(double amount, String transactionType, int recentTransactions) throws Exception {
         String json = String.format(
-            " {\\\"amount\\\": %.2f, \\\"transaction_type\\\": \\\"%s\\\", \\\"recent_transactions\\\": %d} ",
+            "{\"amount\": %.2f, \"transaction_type\": \"%s\", \"recent_transactions\": %d}",
             amount, 
             transactionType,
             recentTransactions
         );
+
+        System.out.println("ANALYZE_URL = " + ANALYZE_URL);
+        System.out.println("JSON BODY = " + json);
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(ANALYZE_URL))
@@ -31,8 +36,12 @@ public class RiskServiceClient {
             .POST(HttpRequest.BodyPublishers.ofString(json))
             .build();
 
-        HttpResponse<String> response = 
+        System.out.println("METHOD = " + request.method());
+
+        HttpResponse<String> response =
             client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        System.out.println("HTTP STATUS = " + response.statusCode());
 
         return response.body();
     }

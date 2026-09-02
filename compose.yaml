@@ -36,7 +36,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
 
-      RISK_SERVICE_HOST: risk_service
+      RISK_SERVICE_HOST: risk-service
       RISK_SERVICE_PORT: 8000
     
     stdin_open: true
@@ -47,6 +47,10 @@ services:
 
     ports:
       - "8000:8000"
+    networks:
+      default:
+        aliases:
+          - risk-service
 
 volumes:
   postgres_data:
