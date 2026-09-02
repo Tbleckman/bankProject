@@ -179,4 +179,13 @@ public class AccountDatabaseAdapter {
             return 5000.0; // default credit limit
         }
     }
+
+    public int getRecentTransactionCount(String accountNumber) {
+        try {
+            return db.getRecentTransactionCount(accountNumber);
+        } catch (SQLException e) {
+            System.err.println("Error retrieving recent transaction count: " + e.getMessage());
+            return 0;
+        }
+    }
 }

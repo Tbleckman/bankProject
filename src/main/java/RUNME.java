@@ -15,6 +15,7 @@ public class RUNME {
             System.out.println("Database connected successfully! \n");
         }
 
+        /*
         try {
             RiskServiceClient riskClient = new RiskServiceClient();
 
@@ -31,6 +32,7 @@ public class RUNME {
             System.err.println("Risk service test failed:");
             e.printStackTrace();
         }
+        */
 
         Interface.choice_wrapper();
     }

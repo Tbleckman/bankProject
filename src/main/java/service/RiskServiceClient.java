@@ -1,5 +1,8 @@
 package service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,7 +22,9 @@ public class RiskServiceClient {
         .version(HttpClient.Version.HTTP_1_1)
         .build();
 
-    public String analyzeTransaction(double amount, String transactionType, int recentTransactions) throws Exception {
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public RiskAnalysis analyzeTransaction(double amount, String transactionType, int recentTransactions) throws Exception {
         String json = String.format(
             "{\"amount\": %.2f, \"transaction_type\": \"%s\", \"recent_transactions\": %d}",
             amount, 
@@ -27,8 +32,10 @@ public class RiskServiceClient {
             recentTransactions
         );
 
+        /*
         System.out.println("ANALYZE_URL = " + ANALYZE_URL);
         System.out.println("JSON BODY = " + json);
+        */
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(ANALYZE_URL))
@@ -36,13 +43,22 @@ public class RiskServiceClient {
             .POST(HttpRequest.BodyPublishers.ofString(json))
             .build();
 
-        System.out.println("METHOD = " + request.method());
+        //System.out.println("METHOD = " + request.method());
 
         HttpResponse<String> response =
             client.send(request, HttpResponse.BodyHandlers.ofString());
 
-        System.out.println("HTTP STATUS = " + response.statusCode());
+        //System.out.println("HTTP STATUS = " + response.statusCode());
 
-        return response.body();
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Risk service returned HTTP " + response.statusCode());
+        }
+        JsonNode responseJson = objectMapper.readTree(response.body());
+        
+        double riskScore = responseJson.get("risk_score").asDouble();
+        boolean flagged = responseJson.get("flagged").asBoolean();
+        String reason = responseJson.get("reason").asText();
+
+        return new RiskAnalysis(riskScore, flagged, reason);
     }
 }

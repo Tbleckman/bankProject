@@ -1,4 +1,7 @@
 //Not importing .* for space efficiency
+import service.RiskServiceClient;
+import service.RiskAnalysis;
+
 import java.util.Scanner;
 import java.util.InputMismatchException;
 import java.io.BufferedWriter;
@@ -458,7 +461,7 @@ public class Interface {
             }
 
             System.out.println("Choose the amount to withdrawal:");
-            double val = -1;
+            double val = -1;            
             while (val < 0 || userBank.getBankDeposit() - val < 0) {
                 try {
                     val = input.nextDouble();
@@ -478,6 +481,23 @@ public class Interface {
                     input.next();
                 }
             }
+            
+            int recentTransactions = dbAdapter.getRecentTransactionCount(userBank.getAccountNumber());
+            RiskServiceClient riskClient = new RiskServiceClient();
+            try {
+                RiskAnalysis riskResult = riskClient.analyzeTransaction(val, "withdrawal", recentTransactions);
+
+                System.out.println();
+                System.out.println("Transaction risk analysis:");
+                System.out.println("Risk score: " + riskResult.getRiskScore());
+                System.out.println("Flagged: " + riskResult.isFlagged());
+                System.out.println("Reason: " + riskResult.getReason());
+                System.out.println();
+            } catch (Exception e) {
+                System.err.println("Risk analysis service unavailable.");
+                System.err.println("Continuing transaction without risk analysis.");
+            }
+
             user.withdrawal(val, userBank);
             dbAdapter.saveAccount(userBank);
             dbAdapter.logTransaction(userBank.getAccountNumber(), "WITHDRAW", val, userBank.getBankDeposit(), "Withdrawal from account");

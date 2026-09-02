@@ -239,6 +239,30 @@ public class DatabaseManager {
         }
         return transactions;
     }
+
+    /*
+    Count txns made by an account within the last 24 hours
+    */
+    public int getRecentTransactionCount(String accountNumber) throws SQLException {
+        String sql = 
+        "SELECT COUNT (*) " + 
+        "FROM transactions t " + 
+        "JOIN accounts a ON t.account_id = a.account_id " +
+        "WHERE a.account_number = ? " +
+        "AND t.transaction_date >= CURRENT_TIMESTAMP - INTERVAL '24 hours' ";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setString(1, accountNumber);
+
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getInt(1);
+                    }
+                }
+            }
+        return 0;
+    }
     
     /**
      * Transfer money between accounts (atomic transaction)
