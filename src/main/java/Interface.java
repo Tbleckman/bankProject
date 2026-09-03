@@ -493,6 +493,20 @@ public class Interface {
                 System.out.println("Flagged: " + riskResult.isFlagged());
                 System.out.println("Reason: " + riskResult.getReason());
                 System.out.println();
+
+                if (riskResult.isFlagged()) {
+                    System.out.println("WARNING: This transaction has been flagged.");
+                    System.out.println("Reason: " + riskResult.getReason());
+                    System.out.println("Do you still want to continue? Y/N");
+
+                    input.nextLine();
+                    String confirmation = input.nextLine().trim();
+
+                    if (!confirmation.equalsIgnoreCase("Y")) {
+                        System.out.println("Withdrawal cancelled.");
+                        return;
+                    }
+                }
             } catch (Exception e) {
                 System.err.println("Risk analysis service unavailable.");
                 System.err.println("Continuing transaction without risk analysis.");
