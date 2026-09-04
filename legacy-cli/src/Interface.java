@@ -13,6 +13,16 @@ import database.AccountDatabaseAdapter;
 import database.DatabaseConfig;
 import database.DatabaseManager;
 
+// NOTE: this is the original CLI entry point, kept for reference to show how the
+// project evolved. It's no longer compiled as part of the Maven build (see
+// legacy-cli/README.md) - the REST API in src/main/java is the deployed app.
+// Imports below were added when domain classes moved into the `domain` package.
+import domain.Bank;
+import domain.User;
+import domain.BNYMellon;
+import domain.Chase;
+import domain.CapitalOne;
+
 public class Interface {
     static Scanner input = new Scanner(System.in);
     static Bank userBankm;
