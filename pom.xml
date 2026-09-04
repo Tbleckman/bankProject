@@ -4,62 +4,68 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+        <relativePath/>
+    </parent>
+
     <!-- Your project information -->
     <groupId>com.banking</groupId>
     <artifactId>bankProject</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
-    
+
     <name>Banking System</name>
-    <description>Java banking system with PostgreSQL</description>
-    
-    <!-- Java version -->
+    <description>Java banking system with PostgreSQL, exposed as a Spring Boot REST API</description>
+
+    <!-- Java version (Spring Boot 3.x requires 17+) -->
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
-    
+
     <!-- Dependencies (libraries your project needs) -->
     <dependencies>
-        <!-- PostgreSQL JDBC Driver -->
+        <!-- Web layer: embedded Tomcat, Spring MVC, Jackson for JSON -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Bean Validation annotations for request DTOs -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Actuator: exposes /actuator/health for local + ECS/ALB health checks -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL JDBC Driver (raw JDBC via DatabaseManager, no Spring Data) -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.1</version>
         </dependency>
+
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.17.2</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
+
     <build>
         <plugins>
+            <!-- Produces the executable fat jar (java -jar app.jar) the standard Spring Boot way -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.1</version>
-
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-
-                        <configuration>
-                            <transformers>
-                                <transformer implementation=
-                                    "org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>RUNME</mainClass>
-                                </transformer>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
