@@ -16,4 +16,11 @@ module "database" {
   rds_sg_id          = module.networking.rds_sg_id
 }
 
-# --- ECR / ECS / GitHub Actions OIDC modules get wired in here next ---
+module "ecr" {
+  source = "../../modules/ecr"
+
+  project_name = var.project_name
+  repo_names   = ["app", "risk-service"]
+}
+
+# --- ECS / GitHub Actions OIDC modules get wired in here next ---
