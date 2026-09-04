@@ -1,46 +1,52 @@
-# Banking System — Containerized, Microservice-Backed, PostgreSQL-Integrated
+# Banking System — Spring Boot REST API, Containerized, Microservice-Backed
 
-A Java banking management system, modernized into a containerized, multi-service application. What started as a terminal-based banking simulator with PostgreSQL persistence now runs as three coordinated Docker services: the Java core app, a Postgres database, and a Python/FastAPI risk-analysis microservice — all orchestrated with Docker Compose and ready to move to AWS ECS Fargate.
+A Java banking management system, evolved in stages: from a terminal-based CLI simulator, to a containerized multi-service application, to a Spring Boot REST API ready for AWS ECS Fargate deployment. The system now runs as three coordinated Docker services — a Spring Boot API, a Postgres database, and a Python/FastAPI risk-analysis microservice — with no interactive terminal or local file dependency standing between it and a cloud deployment.
 
 ## Features
 
+### REST API
+- **Spring Boot 3.2 / Java 17** - Full HTTP API in front of the banking core: customers, accounts, deposits, withdrawals, transfers, transaction history
+- **Bean Validation** - Request DTOs validated at the boundary (`@NotBlank`, `@Positive`, etc.) with clean 400 responses on bad input
+- **Centralized exception handling** - `@RestControllerAdvice` maps domain exceptions to proper HTTP status codes (404 for not-found, 400 for validation failures) instead of leaking stack traces
+- **Actuator health endpoint** - `/actuator/health` used by Docker Compose's healthcheck today, and by an ALB/ECS target group tomorrow
+
 ### Core Banking Operations
 - **Multi-bank account management** - Support for mock BNY Mellon, Chase, and Capital One accounts
-- **Financial transactions** - Deposits, withdrawals with real-time balance updates
-- **Session persistence** - Save and resume sessions across program restarts
-- **Transaction history** - Complete audit trail of all operations
-- **Account management** - Create, switch between, and close bank accounts (max 3 per user)
+- **Financial transactions** - Deposits, withdrawals with real-time balance updates, persisted to Postgres on every operation
+- **Transaction history** - Complete audit trail of all operations, queryable per account
+- **Account limits** - Max 3 accounts per customer, one account per bank type per customer
 
 ### Database Integration
-- **PostgreSQL persistent storage** - All account data survives program restarts
-- **Automatic account recovery** - Load existing accounts when resuming from saved sessions (using the created txt file from prior session)
-- **Transaction logging** - Every deposit/withdrawal logged with timestamps
-- **Unique account identifiers** - Timestamp-based account numbers prevent conflicts, and can be also used to identify accounts from prior sessions
-- **Hybrid persistence** - File I/O for portability, database for data integrity, can use both to pull prior sessions
+- **PostgreSQL persistent storage** - All account and transaction data lives in Postgres; every deposit/withdrawal writes through immediately (not batched or cached in memory)
+- **Unique account identifiers** - Timestamp-based account numbers (e.g. `BNY1730147823456`)
+- **Repository layer** - `DatabaseManager` provides a clean data-access API (`createCustomer`, `getAccount`, `updateBalance`, `logTransaction`, `transferBetweenAccounts`, etc.), reused by both the REST API and the legacy CLI
 
 ### Risk Analysis Microservice
 - **Separate Python/FastAPI service** - Decoupled from the Java core, called over HTTP
 - **Per-transaction risk scoring** - Flags large amounts, high recent activity, and withdrawal patterns
 - **Independently deployable** - Own Dockerfile, own dependency set, communicates only through a defined JSON contract
+- **Live in the withdrawal flow** - `POST /accounts/{accountNumber}/withdraw` calls the risk service synchronously and returns the risk verdict (`riskScore`, `flagged`, `reason`) in the response body
 
 ### Containerization & Cloud Readiness
 - **Multi-stage Docker build** - Java app built in a Maven container, run in a slim JRE container
-- **Docker Compose orchestration** - Postgres, the Java app, and the risk service start together with proper health-check-based startup ordering
+- **Docker Compose orchestration** - Postgres, the Spring Boot app, and the risk service start together with proper health-check-based startup ordering (db → risk_service → app)
 - **Environment-variable configuration** - Both the Java app and the risk service read all connection details from env vars, with local defaults — no code changes needed to move from a laptop to ECS Fargate + RDS
-- **AWS-ready** - Designed as the containerization step ahead of an ECS Fargate deployment with ECR and RDS
+- **Stateless service design** - No local file writes, no interactive terminal dependency — the API can be killed and restarted by ECS at any point without losing anything that matters (all state lives in Postgres)
+- **AWS-ready** - Designed as the step directly ahead of an ECS Fargate deployment with ECR and RDS
 
 ### Technical Features
-- **Custom data structures** - Linked list implementations for transaction management
-- **Dynamic polymorphism** - Bank interface with multiple implementations
-- **Error handling** - User input validation and exception management
+- **Custom data structures** - Linked list implementations for transaction management (retained in the domain layer)
+- **Dynamic polymorphism** - `Bank` interface with multiple implementations (BNYMellon, Chase, CapitalOne)
+- **Layered architecture** - `domain` (business objects) → `banking` (service layer, validation) → `web` (REST controllers, DTOs)
 - **JDBC integration** - Professional database connectivity patterns
 
 ## Technical Stack
 
-- **Language**: Java 11+ (core app), Python 3.12 (risk microservice)
+- **Language**: Java 17 (core app), Python 3.12 (risk microservice)
+- **Framework**: Spring Boot 3.2.5 (Web, Validation, Actuator)
 - **Database**: PostgreSQL 16 (containerized) / 14+ (local)
-- **Build Tool**: Maven 3.9 (multi-stage Docker build)
-- **JDBC Driver**: PostgreSQL 42.7.1
+- **Build Tool**: Maven 3.9 (multi-stage Docker build, `spring-boot-maven-plugin`)
+- **JDBC Driver**: PostgreSQL 42.6.2
 - **Microservice Framework**: FastAPI + Uvicorn
 - **Containerization**: Docker, Docker Compose
 - **Data Structures**: Custom linked lists
@@ -50,33 +56,36 @@ A Java banking management system, modernized into a containerized, multi-service
 ```
 Docker Compose Stack
 │
-├── app (Java, multi-stage build: Maven → JRE)
-│   ├── User Layer
-│   │   ├── User object (pocket money, transaction history)
-│   │   └── Bank accounts array (max 3)
+├── app (Spring Boot, multi-stage build: Maven → JRE, port 8080)
+│   ├── web/            REST controllers + DTOs
+│   │   ├── AccountController      (create, deposit, withdraw, transfer, transactions, close)
+│   │   ├── CustomerController     (create, view, list accounts)
+│   │   └── GlobalExceptionHandler (domain exceptions -> HTTP status codes)
 │   │
-│   ├── Bank Layer (Interface-based)
-│   │   ├── BNYMellon implementation
-│   │   ├── Chase implementation
-│   │   └── CapitalOne implementation
+│   ├── banking/         Service layer - validation rules, orchestration
+│   │   ├── AccountService   (business rules + risk_service integration)
+│   │   └── CustomerService
 │   │
-│   ├── Database Layer
+│   ├── domain/           Business objects (no framework dependency)
+│   │   ├── User, Bank interface
+│   │   └── BNYMellon, Chase, CapitalOne implementations
+│   │
+│   ├── database/         Data access layer
 │   │   ├── DatabaseConfig (env-var-driven connection management)
 │   │   ├── DatabaseManager (SQL operations)
 │   │   └── AccountDatabaseAdapter (ORM bridge)
 │   │
-│   └── Risk Layer
-│       └── RiskServiceClient (HTTP client → risk_service)
+│   └── service/           External HTTP client
+│       └── RiskServiceClient (calls risk_service)
 │
 ├── db (Postgres 16, healthchecked before app starts)
 │   └── banking_schema.sql (auto-loaded on first boot)
 │
-└── risk_service (Python/FastAPI, independent container)
+└── risk_service (Python/FastAPI, independent container, port 8000)
     └── POST /analyze → { risk_score, flagged, reason }
 
-Storage
-├── PostgreSQL (primary persistence, containerized or RDS)
-└── Text files (session backup/portability)
+legacy-cli/ (not part of the build - see legacy-cli/README.md)
+└── Original terminal-based entry point, kept for reference
 ```
 
 ## Database Schema
@@ -125,11 +134,11 @@ docker compose up --build
 That single command will:
 1. Build the Java app image (multi-stage: Maven build → slim JRE runtime)
 2. Build the risk_service image (Python 3.12 + FastAPI/Uvicorn)
-3. Start Postgres, wait for it to report healthy, then start the risk service and the Java app
+3. Start Postgres, wait for it to report healthy, then start the risk service, wait for *it* to report healthy, then start the Spring Boot app
 4. Auto-load `banking_schema.sql` into Postgres on first boot
-5. Attach to the Java app's terminal UI (compose runs it with `stdin_open`/`tty` so the interactive menu works normally)
+5. Expose the API on `http://localhost:8080` once its own `/actuator/health` check passes
 
-The risk service is reachable at `http://localhost:8000` from your host (e.g. `curl http://localhost:8000/health`), and at `http://risk-service:8000` from inside the `app` container.
+The risk service is reachable at `http://localhost:8000` from your host (e.g. `curl http://localhost:8000/health`), and at `http://risk-service:8000` from inside the `app` container. See [REST API](#rest-api) below for the full endpoint list.
 
 **Stopping / resetting:**
 ```bash
@@ -148,7 +157,7 @@ Useful if you want to run the Java app directly against a local Postgres install
 **Prerequisites:**
 ```bash
 # Check versions
-java -version    # Need Java 11+
+java -version    # Need Java 17+
 mvn -version     # Need Maven 3.6+
 psql --version   # Need PostgreSQL 14+
 ```
@@ -217,64 +226,88 @@ If skipped, `RiskServiceClient` will fail its HTTP calls to `localhost:8000` —
 # Compile project
 mvn clean compile
 
-# Run application
-mvn exec:java -Dexec.mainClass="RUNME"
+# Run the REST API (Spring Boot dev mode - auto-restarts on code changes)
+mvn spring-boot:run
+
+# Or build the jar and run it directly
+mvn clean package -DskipTests
+java -jar target/bankProject-1.0.0.jar
 ```
 
-## Usage Guide
+The API starts on `http://localhost:8080` by default (override with the `SERVER_PORT` env var). See [REST API](#rest-api) below for the endpoint list.
 
-### Starting a Session
+## REST API
 
-**New User:**
-- Choose 'N' when asked about previous sessions
-- Enter starting funds
-- Select a bank and initial deposit amount
+Base URL: `http://localhost:8080` (Docker Compose) or wherever `SERVER_PORT` points locally.
 
-**Returning User (from text file):**
-- Choose 'Y' when asked about previous sessions
-- Program automatically loads accounts from database
-- Database balance takes precedence over file balance
+### Customers
 
-### Menu Options
+**Create a customer**
+```bash
+curl -X POST localhost:8080/customers -H "Content-Type: application/json" \
+  -d '{"name":"Jane Doe","email":"jane@example.com","phone":"555-0100"}'
+```
+```json
+{ "customerId": 1, "name": "Jane Doe", "email": "jane@example.com", "phone": "555-0100" }
+```
 
-1. **View bank balance** - Check current bank funds
-2. **View personal funds** - Check pocket money
-3. **Deposit** - Transfer money from pocket to bank
-4. **Withdraw** - Transfer money from bank to pocket
-5. **View all transactions** - See complete transaction history
-6. **Account overview** - Full financial summary
-7. **Add bank account** - Create additional account (max 3)
-8. **Remove bank account** - Close and delete account
-9. **Switch banks** - Change active account
-10. **View bank transactions** - See bank-specific history
-11. **Wipe transaction history** - Clear records
-12. **Wipe transaction history** - Clear records
-13. **Adjust pocket money** - Add/remove personal funds
-14. **Adjust pocket money** - Add/remove personal funds
-15. **End session** - Exit and optionally save
+**Get a customer** — `GET /customers/{customerId}`
 
-### Session Management
+**List a customer's accounts** — `GET /customers/{customerId}/accounts`
 
-**Saving:**
-- Choose option 15 to exit
-- Select 'Y' to save session
-- Creates `bankProject.txt` with account details
-- Database automatically maintains all data
+### Accounts
 
-**Loading:**
-- Start program and choose 'Y' for previous session
-- Program loads from `bankProject.txt`
-- Checks database for current account balances
-- Merges file and database data seamlessly
+**Create an account** (`bankType` is `BNY`, `CH`, or `CA`)
+```bash
+curl -X POST localhost:8080/accounts -H "Content-Type: application/json" \
+  -d '{"customerId":1,"bankType":"BNY","initialDeposit":500}'
+```
+```json
+{ "accountNumber": "BNY1730147823456", "bankName": "BNY Mellon", "accountType": "CHECKING", "balance": 500.0, "active": true }
+```
+Enforces: max 3 accounts per customer, one account per bank type per customer, non-negative initial deposit.
+
+**Get an account** — `GET /accounts/{accountNumber}`
+
+**Deposit**
+```bash
+curl -X POST localhost:8080/accounts/{accountNumber}/deposit \
+  -H "Content-Type: application/json" -d '{"amount":100}'
+```
+
+**Withdraw** — returns the risk_service verdict alongside the updated account. The withdrawal still processes even if flagged or if risk_service is unreachable (mirrors the graceful degradation the original CLI had) — the caller decides what to do with the flag.
+```bash
+curl -X POST localhost:8080/accounts/{accountNumber}/withdraw \
+  -H "Content-Type: application/json" -d '{"amount":50}'
+```
+```json
+{
+  "account": { "accountNumber": "BNY1730147823456", "bankName": "BNY Mellon", "accountType": "CHECKING", "balance": 550.0, "active": true },
+  "riskScore": 0.1, "flagged": false, "riskReason": "no unusual activity", "riskServiceAvailable": true
+}
+```
+
+**Transfer between accounts**
+```bash
+curl -X POST localhost:8080/accounts/transfer -H "Content-Type: application/json" \
+  -d '{"fromAccount":"BNY...","toAccount":"CHS...","amount":50}'
+```
+
+**Transaction history** — `GET /accounts/{accountNumber}/transactions?limit=20`
+
+**Close an account** — `DELETE /accounts/{accountNumber}`
+
+### Errors
+
+Validation failures and not-found lookups return a clean JSON body instead of a stack trace:
+```json
+{ "error": "No active account found with number: BNY123" }
+```
+- `404` — account or customer not found
+- `400` — validation failure (negative amount, insufficient funds, account limit reached, duplicate email, etc.)
+- `500` — unexpected server error
 
 ## Database Features
-
-### Automatic Account Recovery
-When loading a saved session:
-1. Program reads account numbers from text file
-2. Queries database for each account
-3. Uses database balance (current) over file balance (potentially stale)
-4. Creates database entries for accounts not yet in database
 
 ### Transaction Audit Trail
 Every operation is logged:
@@ -332,28 +365,28 @@ On the Java side, `RiskServiceClient` (in `service/`) builds the request, calls 
 ## Design Patterns
 
 - **Interface-based polymorphism** - Bank interface with multiple implementations
+- **Layered architecture** - domain (business objects) → banking (service layer) → web (REST controllers/DTOs)
 - **Adapter pattern** - AccountDatabaseAdapter bridges domain objects with database
 - **Repository pattern** - DatabaseManager encapsulates data access
-- **Singleton-like** - Static database adapter in Interface class
-- **Hybrid persistence** - File + database for redundancy
+- **DTO pattern** - Request/response records in `web/dto` decouple the HTTP contract from domain objects
+- **Centralized exception translation** - `@RestControllerAdvice` maps business exceptions to HTTP status codes in one place
 
 ## Current Limitations
 
-- **Need txt file to restore prior sessions** - must use a txt file created by a prior section to retrieve the correct account information
 - **Maximum 3 bank accounts** - Architectural constraint
 - **Account counter resets** - Uses timestamps to avoid conflicts
-- **Terminal UI only** - No graphical interface
-- **No authentication** - No login/password system
+- **No web UI** - API only, no frontend
+- **No authentication** - No login/password system, no API auth (anyone who can reach the API can call it)
 - **Plaintext local credentials** - `compose.yaml` uses hardcoded Postgres credentials suitable only for local development, not production
 - **No CI/CD yet** - Images are built and run manually; GitHub Actions automation is planned (see Roadmap)
 
 ## Future Enhancements
 
 ### AWS Deployment (in progress)
-The containerization work above is the first phase of a larger cloud migration:
+The REST API refactor above was the prerequisite for this - Fargate has no attached terminal and no persistent local disk, so the app needed to be a real stateless HTTP service before it could deploy there. Next:
 - **ECR** - Push the Java app and risk_service images to private ECR repositories
 - **RDS** - Replace the containerized Postgres with a managed RDS instance (schema and env-var-driven config are already compatible — no app code changes required)
-- **ECS Fargate** - Run both services as Fargate tasks behind the same environment-variable contract used today
+- **ECS Fargate** - Run both services as Fargate tasks behind an ALB, using the same environment-variable contract used today and the existing `/actuator/health` endpoint for target group health checks
 - **GitHub Actions CI/CD** - Build, tag, and push images on merge, using OIDC federation for AWS auth (no long-lived credentials)
 
 ### Feature Roadmap
@@ -363,7 +396,6 @@ The database schema supports these planned features:
 - **Multiple account types** - SAVINGS and CREDIT card accounts
 - **Interest calculations** - Automatic interest on savings accounts
 - **Credit limits** - Overdraft protection and credit card limits
-- **Account transfers** - Move money between your own accounts
 - **Multi-user support** - Separate sessions for different users
 - **Transaction categories** - Tag transactions (bills, groceries, etc.)
 - **Reporting** - Monthly statements and spending analytics
@@ -376,30 +408,48 @@ This project demonstrates:
 - **Object-oriented design** - Interfaces, inheritance, polymorphism
 - **Data structures** - Custom linked list implementations
 - **Database integration** - JDBC, SQL, schema design
-- **Persistence patterns** - File I/O and database storage
-- **Error handling** - Input validation, exception management
+- **REST API design** - Spring Boot, Bean Validation, centralized exception handling
+- **Error handling** - Input validation, exception management, proper HTTP status codes
 - **Build automation** - Maven dependency management
 - **Software architecture** - Layered design, separation of concerns
+- **Legacy migration** - Refactoring an interactive CLI into a stateless, cloud-deployable REST service
 
 ## Files Overview
 
 ```
 src/main/java/
-├── RUNME.java              # Application entry point
-├── Interface.java          # Main UI controller and menu system
-├── User.java              # User domain model
-├── Bank.java              # Bank interface
-├── BNYMellon.java         # BNY Mellon bank implementation
-├── Chase.java             # Chase bank implementation
-├── CapitalOne.java        # Capital One bank implementation
+├── app/
+│   └── BankingApplication.java       # Spring Boot entry point
+├── web/
+│   ├── AccountController.java        # REST endpoints: accounts, deposit, withdraw, transfer
+│   ├── CustomerController.java       # REST endpoints: customers
+│   ├── GlobalExceptionHandler.java   # Maps business exceptions to HTTP status codes
+│   └── dto/                          # Request/response records
+├── banking/
+│   ├── AccountService.java           # Business logic, validation, risk_service integration
+│   ├── CustomerService.java
+│   └── *Exception.java               # AccountNotFoundException, CustomerNotFoundException, ValidationException
+├── domain/
+│   ├── User.java                     # User domain model
+│   ├── Bank.java                     # Bank interface
+│   ├── BNYMellon.java                # BNY Mellon bank implementation
+│   ├── Chase.java                    # Chase bank implementation
+│   └── CapitalOne.java               # Capital One bank implementation
 ├── database/
 │   ├── DatabaseConfig.java           # Connection management (env-var-driven)
 │   ├── DatabaseManager.java          # SQL operations
 │   ├── AccountDatabaseAdapter.java   # Object-relational mapping
-│   └── DatabaseTest.java            # Integration tests
+│   └── DatabaseTest.java             # Integration tests
 └── service/
     ├── RiskServiceClient.java        # HTTP client for risk_service (env-var-driven)
     └── RiskAnalysis.java             # Risk response domain model
+
+src/main/resources/
+└── application.properties            # Server port, actuator config
+
+legacy-cli/                           # Original terminal entry point - not part of the build, see legacy-cli/README.md
+├── src/Interface.java
+└── src/RUNME.java
 
 risk_service/
 ├── app.py                  # FastAPI app (/health, /analyze)
@@ -408,9 +458,9 @@ risk_service/
 
 Dockerfile                  # Multi-stage build for the Java app
 compose.yaml                # Orchestrates app + db + risk_service
-.dockerignore                # Excludes target/, .git/, docs from build context
+.dockerignore                # Excludes target/, .git/, legacy-cli/, docs from build context
 banking_schema.sql          # Database setup script (auto-loaded by Postgres container)
-pom.xml                     # Maven configuration
+pom.xml                     # Maven configuration (Spring Boot 3.2.5, Java 17)
 README.md                   # This file
 ```
 
@@ -420,23 +470,28 @@ README.md                   # This file
 ```bash
 docker compose up --build
 
-# Test workflow:
-# 1. Create account with $1000, deposit $200 to bank
-# 2. Make deposit of $100
-# 3. Make withdrawal of $50 (triggers a risk_service call)
-# 4. Save session and exit
-# 5. docker compose up again and load the saved session
-# 6. Verify balance is correct (should be $250)
+# In another terminal, once all three containers report healthy:
+curl -X POST localhost:8080/customers -H "Content-Type: application/json" \
+  -d '{"name":"Jane Doe","email":"jane@example.com"}'
+# note the customerId from the response
+
+curl -X POST localhost:8080/accounts -H "Content-Type: application/json" \
+  -d '{"customerId":1,"bankType":"BNY","initialDeposit":500}'
+# note the accountNumber from the response
+
+curl -X POST localhost:8080/accounts/{accountNumber}/deposit \
+  -H "Content-Type: application/json" -d '{"amount":100}'   # -> balance 600
+
+curl -X POST localhost:8080/accounts/{accountNumber}/withdraw \
+  -H "Content-Type: application/json" -d '{"amount":50}'    # -> balance 550, includes risk verdict
+
+curl localhost:8080/accounts/{accountNumber}/transactions   # -> both transactions, newest first
 ```
 
 **Manual Testing (local, no Docker):**
 ```bash
-# Run the application
-mvn exec:java -Dexec.mainClass="RUNME"
-
-# Same workflow as above
-```
-
+mvn spring-boot:run
+# same curl workflow as above
 **Risk Service Verification:**
 ```bash
 # With the stack running via docker compose:
@@ -468,7 +523,10 @@ ORDER BY transaction_date DESC LIMIT 5;
 
 **Run Database Tests:**
 ```bash
-mvn exec:java -Dexec.mainClass="database.DatabaseTest"
+# The exec-maven-plugin isn't part of the Spring Boot pom, so run
+# DatabaseTest via your IDE, or on the classpath directly:
+mvn clean compile
+java -cp target/classes:$(find ~/.m2 -name 'postgresql-*.jar' | head -1) database.DatabaseTest
 ```
 
 ## Contributing
@@ -477,7 +535,7 @@ This is an educational project. The code demonstrates:
 
 - Clean architecture principles
 - Database integration patterns
-- Legacy system migration (file → database)
+- Legacy system migration (interactive CLI → stateless REST API)
 - Extensible design for future features
 
 ## License
@@ -494,7 +552,7 @@ GitHub: [@Tbleckman](https://github.com/Tbleckman)
 
 ## Notes
 
-- The file I/O system remains functional for backwards compatibility, as well as the way to retrieve prior banking sessions and their accounts
-- Database serves as the source of truth when both exist
+- The original file-based session I/O (`bankProject.txt`) only exists in `legacy-cli/` now - the REST API is entirely database-backed, with no local file dependency, since Fargate containers don't have persistent local disk
 - Account numbers use timestamps to ensure global uniqueness
 - Schema supports multi-user architecture for future expansion
+- See `legacy-cli/README.md` for why the CLI was split out and how to run it standalone if you want to see where this project started
