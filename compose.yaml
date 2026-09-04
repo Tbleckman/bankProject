@@ -24,8 +24,7 @@ services:
       db:
         condition: service_healthy
       risk_service:
-        condition: service_started
-
+        condition: service_healthy
 
     build: .
 
@@ -38,9 +37,16 @@ services:
 
       RISK_SERVICE_HOST: risk-service
       RISK_SERVICE_PORT: 8000
-    
-    stdin_open: true
-    tty: true
+
+    ports:
+      - "8080:8080"
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   risk_service:
     build: ./risk_service
@@ -51,6 +57,12 @@ services:
       default:
         aliases:
           - risk-service
+
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:
