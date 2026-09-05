@@ -12,15 +12,18 @@ terraform {
     }
   }
 
-  # TODO: switch to an S3 backend + DynamoDB lock table before this goes
-  # further - same gap flagged on aws-terraform-demo (no state locking yet).
-  # backend "s3" {
-  #   bucket         = "bankproject-tfstate-<account-id>"
-  #   key            = "dev/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "bankproject-tf-locks"
-  #   encrypt        = true
-  # }
+  # State locking: bucket + table created once via infra/bootstrap (separate
+  # root module, has to use local state itself - see that dir's comments).
+  # Bucket/table names follow a fixed pattern from bootstrap/main.tf, but
+  # backend blocks can't reference variables, so they're spelled out here.
+  # If you renamed project_name away from "bankproject", update these to match.
+  backend "s3" {
+    bucket         = "bankproject-tfstate-<ACCOUNT_ID>" # replace <ACCOUNT_ID> after running bootstrap
+    key            = "dev/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "bankproject-tf-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {

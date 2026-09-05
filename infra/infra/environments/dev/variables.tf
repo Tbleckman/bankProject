@@ -28,3 +28,9 @@ variable "github_repo" {
   type    = string
   default = "bankProject"
 }
+
+variable "create_oidc_provider" {
+  description = "Set to false if aws-terraform-demo (or anything else in this account) already registered the token.actions.githubusercontent.com OIDC provider - AWS only allows one per issuer URL per account."
+  type        = bool
+  default     = true
+}

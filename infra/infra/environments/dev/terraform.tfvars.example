@@ -1,0 +1,17 @@
+# Copy this to terraform.tfvars (gitignored) and fill in real values before
+# running terraform apply in this directory.
+
+aws_region   = "us-east-1"
+project_name = "bankproject"
+
+github_org  = "Tbleckman"
+github_repo = "bankProject"
+
+# You almost certainly want this false if aws-terraform-demo already ran
+# in this AWS account - it will have registered the GitHub OIDC provider
+# already, and an account only gets one per issuer URL.
+create_oidc_provider = false
+
+# Leave at the default "initial" for the very first apply - see
+# infra/bootstrap/push-initial-images.sh for what happens next.
+# image_tag = "initial"

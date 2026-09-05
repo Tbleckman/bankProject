@@ -54,4 +54,5 @@ module "cicd" {
   ecs_service_arn          = module.compute.service_arn
   task_execution_role_arn = module.compute.task_execution_role_arn
   task_role_arn            = module.compute.task_role_arn
+  create_oidc_provider    = var.create_oidc_provider
 }
