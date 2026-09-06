@@ -378,16 +378,33 @@ On the Java side, `RiskServiceClient` (in `service/`) builds the request, calls 
 - **No web UI** - API only, no frontend
 - **No authentication** - No login/password system, no API auth (anyone who can reach the API can call it)
 - **Plaintext local credentials** - `compose.yaml` uses hardcoded Postgres credentials suitable only for local development, not production
-- **No CI/CD yet** - Images are built and run manually; GitHub Actions automation is planned (see Roadmap)
+- **CI/CD pipeline not yet wired up** - The OIDC auth infrastructure exists (`terraform/cicd`), but the GitHub Actions workflow that builds/tags/pushes on merge hasn't been written yet — images are still built and run manually
 
-## Future Enhancements
+## Infrastructure
 
-### AWS Deployment (in progress)
-The REST API refactor above was the prerequisite for this - Fargate has no attached terminal and no persistent local disk, so the app needed to be a real stateless HTTP service before it could deploy there. Next:
-- **ECR** - Push the Java app and risk_service images to private ECR repositories
-- **RDS** - Replace the containerized Postgres with a managed RDS instance (schema and env-var-driven config are already compatible — no app code changes required)
-- **ECS Fargate** - Run both services as Fargate tasks behind an ALB, using the same environment-variable contract used today and the existing `/actuator/health` endpoint for target group health checks
-- **GitHub Actions CI/CD** - Build, tag, and push images on merge, using OIDC federation for AWS auth (no long-lived credentials)
+The REST API refactor above was the prerequisite for this — Fargate has no attached terminal and no persistent local disk, so the app needed to be a real stateless HTTP service before it could deploy there. The `terraform/` directory provisions the full AWS stack as modular, versioned infrastructure:
+
+- **bootstrap** — S3 backend for Terraform state + a DynamoDB table for state locking, applied once, ahead of everything else
+- **networking** — VPC, subnets, and the routing/security-group setup the rest of the stack runs inside
+- **database** — RDS Postgres, replacing the containerized Postgres used locally; same schema, same env-var-driven config on the app side, so no application code changes were needed
+- **ecr** — Private ECR repositories for the Java app and risk_service images
+- **compute** — ECS Fargate services and an ALB in front of them, using the same `/actuator/health` endpoint already used by the Docker Compose healthcheck for target group health checks
+- **cicd** — GitHub Actions OIDC federation resources, so the pipeline can authenticate to AWS without long-lived credentials
+
+**Applying it:**
+```bash
+cd terraform/bootstrap
+terraform init && terraform apply   # one-time: creates the S3/DynamoDB backend
+
+cd ../    # back to the root module
+terraform init
+terraform plan     # review the full resource set before applying
+terraform apply
+```
+
+### Remaining Work
+- **GitHub Actions pipeline** - wire up the build/tag/push-on-merge workflow against the `cicd` module's OIDC role now that the underlying infrastructure exists
+- **Secrets Manager verification** - confirm RDS credentials are being pulled correctly at the ECS task level rather than falling back to any local defaults
 
 ### Feature Roadmap
 The database schema supports these planned features:
@@ -456,6 +473,14 @@ risk_service/
 ├── requirements.txt        # fastapi, uvicorn[standard]
 └── Dockerfile              # python:3.12-slim image
 
+terraform/                  # AWS infrastructure as code - see Infrastructure section above
+├── bootstrap/              # S3 state backend + DynamoDB lock table (applied once, first)
+├── networking/             # VPC, subnets, routing, security groups
+├── database/                # RDS Postgres
+├── ecr/                    # Private ECR repos (app + risk_service images)
+├── compute/                 # ECS Fargate services + ALB
+└── cicd/                    # GitHub Actions OIDC role for AWS auth
+
 Dockerfile                  # Multi-stage build for the Java app
 compose.yaml                # Orchestrates app + db + risk_service
 .dockerignore                # Excludes target/, .git/, legacy-cli/, docs from build context
@@ -486,12 +511,23 @@ curl -X POST localhost:8080/accounts/{accountNumber}/withdraw \
   -H "Content-Type: application/json" -d '{"amount":50}'    # -> balance 550, includes risk verdict
 
 curl localhost:8080/accounts/{accountNumber}/transactions   # -> both transactions, newest first
+
+# Create a second account for the same customer, then transfer between them
+curl -X POST localhost:8080/accounts -H "Content-Type: application/json" \
+  -d '{"customerId":1,"bankType":"CH","initialDeposit":0}'
+# note the second accountNumber
+
+curl -X POST localhost:8080/accounts/transfer -H "Content-Type: application/json" \
+  -d '{"fromAccount":"{accountNumber}","toAccount":"{secondAccountNumber}","amount":20}'
+# returns 200 with an empty body on success
 ```
 
 **Manual Testing (local, no Docker):**
 ```bash
 mvn spring-boot:run
 # same curl workflow as above
+```
+
 **Risk Service Verification:**
 ```bash
 # With the stack running via docker compose:
